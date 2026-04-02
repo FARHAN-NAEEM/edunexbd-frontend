@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import { 
   Plus, Search, BookOpen, Hash, AlertCircle, X, Trash2, 
-  Layers, CalendarDays, LayoutGrid, Info 
+  Layers, CalendarDays, LayoutGrid, Info, Calculator, CheckCircle2
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -33,7 +33,12 @@ export default function AcademicSetupPage() {
   const [yearFormData, setYearFormData] = useState({ year: '', startDate: '', endDate: '' });
   const [classFormData, setClassFormData] = useState({ name: '', academicYearId: '' });
   const [sectionFormData, setSectionFormData] = useState({ name: '', classId: '' });
-  const [subjectFormData, setSubjectFormData] = useState({ name: '', code: '', classId: '' });
+  
+  // ✅ DYNAMIC SUBJECT FORM STATE
+  const [subjectFormData, setSubjectFormData] = useState({ 
+    name: '', code: '', classId: '',
+    hasPractical: false, writtenMarks: 100, mcqMarks: 0, practicalMarks: 0, fullMarks: 100, passMarks: 33
+  });
 
   useEffect(() => {
     fetchAllData();
@@ -45,13 +50,11 @@ export default function AcademicSetupPage() {
     setIsLoading(false);
   };
 
-  // Helper: Format Date to "01 Jan 2026"
+  // Helper: Format Date
   const formatDate = (dateString: string) => {
     if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric'
+      day: '2-digit', month: 'short', year: 'numeric'
     });
   };
 
@@ -94,7 +97,7 @@ export default function AcademicSetupPage() {
     if (res.ok) setSubjects(await res.json());
   };
 
-  // ----- Submit Handlers with Sanitization -----
+  // ----- Submit Handlers -----
   const handleYearAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true); setModalError('');
@@ -105,7 +108,7 @@ export default function AcademicSetupPage() {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` },
         body: JSON.stringify(sanitizedData) 
       });
-      if (!res.ok) throw new Error('শিক্ষাবর্ষ যোগ করতে সমস্যা হয়েছে!');
+      if (!res.ok) throw new Error('শিক্ষাবর্ষ যোগ করতে সমস্যা হয়েছে!');
       setIsYearModalOpen(false); setYearFormData({ year: '', startDate: '', endDate: '' });
       fetchAcademicYears();
     } catch (error: any) { setModalError(error.message); } finally { setIsSubmitting(false); }
@@ -121,7 +124,7 @@ export default function AcademicSetupPage() {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` },
         body: JSON.stringify(sanitizedData) 
       });
-      if (!res.ok) throw new Error('ক্লাস যোগ করতে সমস্যা হয়েছে!');
+      if (!res.ok) throw new Error('ক্লাস যোগ করতে সমস্যা হয়েছে!');
       setIsClassModalOpen(false); setClassFormData({ name: '', academicYearId: '' });
       fetchClasses();
     } catch (error: any) { setModalError(error.message); } finally { setIsSubmitting(false); }
@@ -137,10 +140,27 @@ export default function AcademicSetupPage() {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` },
         body: JSON.stringify(sanitizedData) 
       });
-      if (!res.ok) throw new Error('সেকশন যোগ করতে সমস্যা হয়েছে!');
+      if (!res.ok) throw new Error('সেকশন যোগ করতে সমস্যা হয়েছে!');
       setIsSectionModalOpen(false); setSectionFormData({ name: '', classId: '' });
       fetchSections();
     } catch (error: any) { setModalError(error.message); } finally { setIsSubmitting(false); }
+  };
+
+  // ✅ DYNAMIC SUBJECT AUTO-CALCULATION LOGIC
+  const handleMarksChange = (field: string, value: string) => {
+    const numVal = value === '' ? 0 : Number(value);
+    setSubjectFormData(prev => {
+      const newData = { ...prev, [field]: numVal };
+      const total = (newData.writtenMarks || 0) + (newData.mcqMarks || 0) + (newData.hasPractical ? (newData.practicalMarks || 0) : 0);
+      return { ...newData, fullMarks: total };
+    });
+  };
+
+  const handleHasPracticalToggle = (checked: boolean) => {
+    setSubjectFormData(prev => {
+      const total = prev.writtenMarks + prev.mcqMarks + (checked ? prev.practicalMarks : 0);
+      return { ...prev, hasPractical: checked, fullMarks: total };
+    });
   };
 
   const handleSubjectAdd = async (e: React.FormEvent) => {
@@ -157,8 +177,9 @@ export default function AcademicSetupPage() {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` },
         body: JSON.stringify(sanitizedData) 
       });
-      if (!res.ok) throw new Error('বিষয় যোগ করতে সমস্যা হয়েছে!');
-      setIsSubjectModalOpen(false); setSubjectFormData({ name: '', code: '', classId: '' });
+      if (!res.ok) throw new Error('বিষয় যোগ করতে সমস্যা হয়েছে!');
+      setIsSubjectModalOpen(false); 
+      setSubjectFormData({ name: '', code: '', classId: '', hasPractical: false, writtenMarks: 100, mcqMarks: 0, practicalMarks: 0, fullMarks: 100, passMarks: 33 });
       fetchSubjects();
     } catch (error: any) { setModalError(error.message); } finally { setIsSubmitting(false); }
   };
@@ -191,19 +212,19 @@ export default function AcademicSetupPage() {
           )}
           {activeTab === 'subjects' && (
             <button onClick={() => { setModalError(''); setIsSubjectModalOpen(true); }} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-blue-600/20 transition-all active:scale-95">
-              <Plus className="w-5 h-5" /> নতুন বিষয়
+              <Plus className="w-5 h-5" /> নতুন বিষয়
             </button>
           )}
         </div>
       </div>
 
-      {/* ট্যাব নেভিগেশন - Improved UI */}
+      {/* ট্যাব নেভিগেশন */}
       <div className="flex gap-1 border-b border-slate-200 overflow-x-auto no-scrollbar bg-slate-100/50 p-1 rounded-2xl w-fit">
         {[
           { id: 'years', label: 'শিক্ষাবর্ষ', icon: CalendarDays, color: 'text-emerald-600', bg: 'bg-emerald-50' },
           { id: 'classes', label: 'ক্লাসসমূহ', icon: Layers, color: 'text-indigo-600', bg: 'bg-indigo-50' },
           { id: 'sections', label: 'শাখা/সেকশন', icon: LayoutGrid, color: 'text-violet-600', bg: 'bg-violet-50' },
-          { id: 'subjects', label: 'বিষয়সমূহ', icon: BookOpen, color: 'text-blue-600', bg: 'bg-blue-50' },
+          { id: 'subjects', label: 'বিষয়সমূহ', icon: BookOpen, color: 'text-blue-600', bg: 'bg-blue-50' },
         ].map((tab: any) => (
           <button 
             key={tab.id}
@@ -219,7 +240,7 @@ export default function AcademicSetupPage() {
         ))}
       </div>
 
-      {/* টেবিল এরিয়া */}
+      {/* টেবিল এরিয়া */}
       <div className="bg-white rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 overflow-hidden">
         {isLoading ? (
           <div className="py-32 flex flex-col items-center gap-4">
@@ -313,8 +334,10 @@ export default function AcademicSetupPage() {
                   <thead className="bg-slate-50/80 border-b border-slate-100 text-slate-500 text-xs font-bold uppercase tracking-widest">
                     <tr>
                       <th className="p-6 pl-8">কোড</th>
-                      <th className="p-6">বিষয়ের নাম</th>
+                      <th className="p-6">বিষয়ের নাম</th>
                       <th className="p-6">ক্লাস</th>
+                      <th className="p-6">পূর্ণমান</th>
+                      <th className="p-6">ধরন</th>
                       <th className="p-6 text-right pr-8">অ্যাকশন</th>
                     </tr>
                   </thead>
@@ -327,6 +350,14 @@ export default function AcademicSetupPage() {
                           <span className="bg-blue-50 text-blue-700 px-3 py-1 rounded-lg text-sm font-bold border border-blue-100">
                             {sub.class?.name || 'N/A'}
                           </span>
+                        </td>
+                        <td className="p-6 font-black text-indigo-700">{sub.fullMarks || 100}</td>
+                        <td className="p-6">
+                          {sub.hasPractical ? (
+                            <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wider">Practical</span>
+                          ) : (
+                            <span className="bg-slate-100 text-slate-600 border border-slate-200 px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wider">Theory</span>
+                          )}
                         </td>
                         <td className="p-6 text-right pr-8 text-slate-300"><Trash2 className="w-5 h-5 ml-auto" /></td>
                       </tr>
@@ -440,36 +471,97 @@ export default function AcademicSetupPage() {
         </div>
       )}
 
-      {/* ---------------- 4. MODAL: ADD SUBJECT ---------------- */}
+      {/* ---------------- 4. MODAL: ADD SUBJECT (DYNAMIC MARKS) ---------------- */}
       {isSubjectModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md animate-in zoom-in-95 duration-300 overflow-hidden">
+          {/* ✅ Modal widened for Marks Grid */}
+          <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-xl animate-in zoom-in-95 duration-300 overflow-hidden">
             <div className="px-8 py-6 border-b flex justify-between items-center bg-slate-50/50">
               <div>
-                <h2 className="text-xl font-black text-slate-800 tracking-tight">নতুন বিষয় যোগ করুন</h2>
-                <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Subject Entry</p>
+                <h2 className="text-xl font-black text-slate-800 tracking-tight">নতুন বিষয় ও মার্কস সেটআপ</h2>
+                <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Subject Entry & Grading</p>
               </div>
-              <button onClick={() => setIsSubjectModalOpen(false)} className="text-slate-400 p-2 bg-white rounded-full"><X className="w-5 h-5"/></button>
+              <button onClick={() => setIsSubjectModalOpen(false)} className="text-slate-400 p-2 bg-white hover:text-red-500 rounded-full transition-colors"><X className="w-5 h-5"/></button>
             </div>
-            <form onSubmit={handleSubjectAdd} className="p-8 space-y-5">
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-700 ml-1">বিষয়ের নাম</label>
-                <input required className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none transition-all font-bold" value={subjectFormData.name} onChange={e => setSubjectFormData({...subjectFormData, name: e.target.value})} placeholder="যেমন: পদার্থবিজ্ঞান" />
+
+            <form onSubmit={handleSubjectAdd} className="p-8 space-y-6 max-h-[75vh] overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-200">
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-slate-700 ml-1">বিষয়ের নাম</label>
+                  <input required className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none transition-all font-bold" value={subjectFormData.name} onChange={e => setSubjectFormData({...subjectFormData, name: e.target.value})} placeholder="যেমন: Physics" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-slate-700 ml-1">সাবজেক্ট কোড</label>
+                  <input required className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none uppercase font-mono font-bold" value={subjectFormData.code} onChange={e => setSubjectFormData({...subjectFormData, code: e.target.value})} placeholder="PHY-101" />
+                </div>
               </div>
+
               <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-700 ml-1">সাবজেক্ট কোড</label>
-                <input required className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none uppercase font-mono font-bold" value={subjectFormData.code} onChange={e => setSubjectFormData({...subjectFormData, code: e.target.value})} placeholder="PHY-101" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-700 ml-1">ক্লাস</label>
+                <label className="text-sm font-bold text-slate-700 ml-1">নির্ধারিত ক্লাস</label>
                 <select required className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none font-bold" value={subjectFormData.classId} onChange={e => setSubjectFormData({...subjectFormData, classId: e.target.value})}>
                   <option value="">ক্লাস সিলেক্ট করুন</option>
                   {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
-              <div className="pt-4 flex items-center gap-3">
-                <button type="button" onClick={() => setIsSubjectModalOpen(false)} className="flex-1 py-4 text-slate-500 font-bold">বাতিল</button>
-                <button type="submit" disabled={isSubmitting} className="flex-[2] bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-bold shadow-lg shadow-blue-600/20 active:scale-95">{isSubmitting ? 'সেভ হচ্ছে...' : 'সেভ করুন'}</button>
+
+              {/* ✅ DYNAMIC MARKS DISTRIBUTION BOX */}
+              <div className="space-y-2 mt-4">
+                <label className="text-sm font-bold text-slate-700 ml-1 flex items-center gap-2"><Calculator className="w-4 h-4 text-blue-600"/> মার্কস ডিস্ট্রিবিউশন</label>
+                <div className="p-5 bg-blue-50/50 rounded-2xl border border-blue-100 space-y-5">
+                  
+                  {/* Practical Toggle */}
+                  <label className="flex items-center gap-3 cursor-pointer group w-fit">
+                    <div className="relative">
+                      <input type="checkbox" className="sr-only peer" checked={subjectFormData.hasPractical} onChange={e => handleHasPracticalToggle(e.target.checked)} />
+                      <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </div>
+                    <span className="font-bold text-slate-700 group-hover:text-blue-700 transition-colors">প্র্যাকটিক্যাল পরীক্ষা আছে</span>
+                  </label>
+
+                  {/* Components Grid */}
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-black text-slate-500 uppercase tracking-wider">Written Marks</label>
+                      <input type="number" required className="w-full p-3.5 bg-white border border-slate-200 rounded-xl font-black text-slate-700 text-center focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/10 transition-all" value={subjectFormData.writtenMarks || ''} onChange={(e) => handleMarksChange('writtenMarks', e.target.value)} placeholder="0" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-black text-slate-500 uppercase tracking-wider">MCQ Marks</label>
+                      <input type="number" required className="w-full p-3.5 bg-white border border-slate-200 rounded-xl font-black text-slate-700 text-center focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/10 transition-all" value={subjectFormData.mcqMarks || ''} onChange={(e) => handleMarksChange('mcqMarks', e.target.value)} placeholder="0" />
+                    </div>
+                    
+                    {/* Conditional Practical Input */}
+                    {subjectFormData.hasPractical ? (
+                      <div className="space-y-1.5 animate-in slide-in-from-right-4 fade-in duration-300">
+                        <label className="text-[11px] font-black text-blue-600 uppercase tracking-wider">Practical Marks</label>
+                        <input type="number" required className="w-full p-3.5 bg-blue-50 border border-blue-200 rounded-xl font-black text-blue-800 text-center focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all" value={subjectFormData.practicalMarks || ''} onChange={(e) => handleMarksChange('practicalMarks', e.target.value)} placeholder="0" />
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5 opacity-50 grayscale pointer-events-none">
+                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Practical Marks</label>
+                        <div className="w-full p-3.5 bg-slate-100 border border-slate-200 rounded-xl font-black text-slate-400 text-center">N/A</div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Totals Grid */}
+                  <div className="grid grid-cols-2 gap-4 pt-4 border-t border-blue-200/50">
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-black text-emerald-600 uppercase tracking-wider flex items-center gap-1"><CheckCircle2 className="w-3 h-3"/> Total Marks (Auto)</label>
+                      <div className="w-full p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl font-black text-emerald-700 text-center text-lg">{subjectFormData.fullMarks}</div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-black text-amber-600 uppercase tracking-wider">Pass Marks (Total)</label>
+                      <input type="number" required className="w-full p-3.5 bg-white border border-amber-200 rounded-xl font-black text-slate-700 text-center focus:border-amber-500 focus:outline-none focus:ring-4 focus:ring-amber-500/20 transition-all" value={subjectFormData.passMarks || ''} onChange={(e) => setSubjectFormData({...subjectFormData, passMarks: Number(e.target.value)})} placeholder="33" />
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
+              <div className="pt-6 flex items-center gap-3 border-t border-slate-100">
+                <button type="button" onClick={() => setIsSubjectModalOpen(false)} className="flex-1 py-4 text-slate-500 font-bold hover:bg-slate-50 rounded-2xl transition-colors">বাতিল</button>
+                <button type="submit" disabled={isSubmitting} className="flex-[2] bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-bold shadow-lg shadow-blue-600/20 active:scale-95 transition-all">{isSubmitting ? 'সেভ হচ্ছে...' : 'সাবজেক্ট তৈরি করুন'}</button>
               </div>
             </form>
           </div>

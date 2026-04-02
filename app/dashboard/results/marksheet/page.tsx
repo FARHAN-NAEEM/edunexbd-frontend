@@ -13,9 +13,12 @@ function MarksheetContent() {
   // --- States for Filters ---
   const [classes, setClasses] = useState<any[]>([]);
   const [sections, setSections] = useState<any[]>([]);
-  const [exams, setExams] = useState<any[]>([{ id: 'exam-mid-01', name: 'Mid Term Exam 2026' }]);
+  
+  // ✅ FIX: Removed dummy exam data
+  const [exams, setExams] = useState<any[]>([]);
 
-  const [selectedExam, setSelectedExam] = useState('exam-mid-01');
+  // ✅ FIX: Start with empty selected values
+  const [selectedExam, setSelectedExam] = useState('');
   const [selectedClass, setSelectedClass] = useState('');
   const [selectedSection, setSelectedSection] = useState('');
 
@@ -35,15 +38,24 @@ function MarksheetContent() {
     }
   }, [studentIdFromUrl]);
 
-  // --- Fetch Initial Data (Classes) ---
+  // --- Fetch Initial Data ---
   useEffect(() => {
     fetchClasses();
+    fetchExams(); // ✅ FIX: Fetching real exams
   }, []);
 
   useEffect(() => {
     if (selectedClass) fetchSections(selectedClass);
     else setSections([]);
   }, [selectedClass]);
+
+  // ✅ FIX: Function to fetch real exams from backend
+  const fetchExams = async () => {
+    const res = await fetch('http://localhost:3000/results/exams', {
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` }
+    });
+    if (res.ok) setExams(await res.json());
+  };
 
   const fetchClasses = async () => {
     const res = await fetch('http://localhost:3000/academic/classes', {
@@ -98,6 +110,8 @@ function MarksheetContent() {
       const matchedStudent = students.find(s => s.id === id) || { 
         firstName: 'MD.', lastName: 'NAEEM', studentId: 'RK-2026-012', rollNo: 1 
       };
+      
+      const examName = exams.find(e => e.id === selectedExam)?.name || 'Exam';
 
       setResultData({
         school: {
@@ -115,7 +129,7 @@ function MarksheetContent() {
           photoUrl: 'https://i.pravatar.cc/150?img=11' 
         },
         exam: {
-          name: 'Mid Term Exam 2026'
+          name: examName // ✅ Dynamic Exam Name
         },
         summary: {
           totalMarks: 709,
@@ -164,6 +178,7 @@ function MarksheetContent() {
           </div>
           
           <select value={selectedExam} onChange={(e) => setSelectedExam(e.target.value)} className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:outline-none text-sm">
+            <option value="">পরীক্ষা সিলেক্ট করুন</option> {/* ✅ FIX: Added placeholder option */}
             {exams.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
           </select>
           
@@ -402,7 +417,6 @@ function MarksheetContent() {
   );
 }
 
-// Next.js SearchParams Wrapper Component
 export default function MarksheetPage() {
   return (
     <Suspense fallback={<div className="h-[70vh] flex items-center justify-center text-blue-600"><Loader2 className="w-10 h-10 animate-spin" /></div>}>

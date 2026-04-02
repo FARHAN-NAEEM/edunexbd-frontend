@@ -12,8 +12,9 @@ export default function MarksEntryPage() {
   const [classes, setClasses] = useState<any[]>([]);
   const [sections, setSections] = useState<any[]>([]);
   const [subjects, setSubjects] = useState<any[]>([]);
-  // Note: For now, we are using a dummy exam. Later you can fetch from backend.
-  const [exams, setExams] = useState<any[]>([{ id: 'exam-mid-01', name: 'Mid Term Exam 2026' }]);
+  
+  // ✅ FIX: Removed dummy exam data, now initially empty
+  const [exams, setExams] = useState<any[]>([]);
 
   const [selectedExam, setSelectedExam] = useState('');
   const [selectedClass, setSelectedClass] = useState('');
@@ -25,9 +26,10 @@ export default function MarksEntryPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // --- Fetch Initial Data (Classes) ---
+  // --- Fetch Initial Data ---
   useEffect(() => {
     fetchClasses();
+    fetchExams(); // ✅ FIX: Added fetchExams call on initial load
   }, []);
 
   // --- Fetch Sections & Subjects when Class changes ---
@@ -40,6 +42,14 @@ export default function MarksEntryPage() {
       setSubjects([]);
     }
   }, [selectedClass]);
+
+  // ✅ FIX: Function to fetch real exams from backend
+  const fetchExams = async () => {
+    const res = await fetch('http://localhost:3000/results/exams', {
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` }
+    });
+    if (res.ok) setExams(await res.json());
+  };
 
   const fetchClasses = async () => {
     const res = await fetch('http://localhost:3000/academic/classes', {
@@ -77,7 +87,6 @@ export default function MarksEntryPage() {
 
     setIsLoading(true);
     try {
-      // Fetch students of the selected section
       const res = await fetch('http://localhost:3000/students', {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` }
       });
@@ -85,7 +94,6 @@ export default function MarksEntryPage() {
         const allStudents = await res.json();
         const sectionStudents = allStudents.filter((s: any) => s.sectionId === selectedSection);
         
-        // Map them to match our grid requirements (Adding default marks 0)
         const gridData = sectionStudents.map((student: any) => ({
           id: student.id,
           rollNo: student.rollNo,
@@ -97,7 +105,6 @@ export default function MarksEntryPage() {
           total: 0
         }));
         
-        // Sort by Roll Number
         gridData.sort((a: any, b: any) => a.rollNo - b.rollNo);
         setStudents(gridData);
       }
@@ -115,7 +122,6 @@ export default function MarksEntryPage() {
     const updatedStudents = [...students];
     updatedStudents[index][field] = numericValue;
     
-    // Auto Calculate Total
     const w = Number(updatedStudents[index].written) || 0;
     const m = Number(updatedStudents[index].mcq) || 0;
     const p = Number(updatedStudents[index].practical) || 0;
@@ -131,12 +137,11 @@ export default function MarksEntryPage() {
     try {
       const token = localStorage.getItem('accessToken');
       
-      // Since our API processes one mark at a time, we will use Promise.all to save all rows instantly
       const promises = students.map((student) => {
         const payload = {
           studentId: student.id,
           subjectId: selectedSubject,
-          examId: selectedExam, // Dummy or Real Exam ID
+          examId: selectedExam, 
           written: Number(student.written) || 0,
           mcq: Number(student.mcq) || 0,
           practical: Number(student.practical) || 0,
@@ -173,7 +178,7 @@ export default function MarksEntryPage() {
         <p className="text-slate-500 text-[15px] mt-1 font-medium ml-11">পরীক্ষার মার্কস ইনপুট দিন এবং সেভ করুন</p>
       </div>
 
-      {/* ---------------- FILTER SECTION ---------------- */}
+      {/* FILTER SECTION */}
       <div className="bg-white p-6 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100">
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           
@@ -223,11 +228,10 @@ export default function MarksEntryPage() {
         </div>
       </div>
 
-      {/* ---------------- EXCEL-LIKE GRID SECTION ---------------- */}
+      {/* EXCEL-LIKE GRID SECTION */}
       {students.length > 0 && (
         <div className="bg-white rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 overflow-hidden flex flex-col relative">
           
-          {/* Grid Header */}
           <div className="p-6 border-b border-slate-100 bg-indigo-50/50 flex justify-between items-center">
             <div>
               <h2 className="text-lg font-black text-slate-800 flex items-center gap-2">
@@ -245,7 +249,6 @@ export default function MarksEntryPage() {
             </button>
           </div>
 
-          {/* Grid Table */}
           <div className="overflow-x-auto p-6">
             <table className="w-full text-left border-collapse">
               <thead>
@@ -271,7 +274,6 @@ export default function MarksEntryPage() {
                       <div className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-0.5">{student.studentId}</div>
                     </td>
 
-                    {/* Inputs */}
                     <td className="py-3 px-2">
                       <input 
                         type="number" 
@@ -300,7 +302,6 @@ export default function MarksEntryPage() {
                       />
                     </td>
 
-                    {/* Auto Total */}
                     <td className="py-4 px-4 text-center">
                       <div className="inline-flex items-center justify-center min-w-[3rem] px-3 py-2 bg-emerald-50 text-emerald-700 font-black rounded-xl border border-emerald-100 text-lg">
                         {student.total}

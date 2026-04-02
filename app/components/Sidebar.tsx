@@ -3,15 +3,17 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, GraduationCap, BookOpen, CalendarCheck, Settings, FileSpreadsheet } from 'lucide-react';
+import { LayoutDashboard, Users, GraduationCap, BookOpen, CalendarCheck, Settings, FileSpreadsheet, ClipboardList } from 'lucide-react';
 
 const navItems = [
   { name: 'ড্যাশবোর্ড', href: '/dashboard', icon: LayoutDashboard },
   { name: 'শিক্ষক', href: '/dashboard/teachers', icon: GraduationCap },
   { name: 'শিক্ষার্থী', href: '/dashboard/students', icon: Users },
-  { name: 'বিষয়সমূহ', href: '/dashboard/subjects', icon: BookOpen },
   { name: 'উপস্থিতি (হাজিরা)', href: '/dashboard/attendance', icon: CalendarCheck },
-  { name: 'রেজাল্ট (মার্কস)', href: '/dashboard/results/marks-entry', icon: FileSpreadsheet }, // 👈 নতুন রেজাল্ট মডিউল অ্যাড করা হয়েছে
+  { name: 'বিষয়সমূহ', href: '/dashboard/subjects', icon: BookOpen },
+  { name: 'পরীক্ষা (Exams)', href: '/dashboard/exams', icon: ClipboardList }, // ✅ নতুন যোগ করা হয়েছে
+  { name: 'রেজাল্ট (মার্কস)', href: '/dashboard/results/marks-entry', icon: FileSpreadsheet },
+  { name: 'ট্যাবুলেশন শিট', href: '/dashboard/results/tabulation', icon: FileSpreadsheet },
   { name: 'সেটিংস', href: '/dashboard/settings', icon: Settings },
 ];
 
@@ -30,7 +32,6 @@ export default function Sidebar() {
 
       <nav className="flex-1 px-4 py-8 space-y-2 overflow-y-auto">
         {navItems.map((item) => {
-          // বাগ ফিক্স: ড্যাশবোর্ডের জন্য শুধু এক্সাক্ট ম্যাচ চেক করবে, অন্যথায় সাব-ফোল্ডার চেক করবে
           const isActive = item.href === '/dashboard' 
             ? pathname === '/dashboard' 
             : pathname === item.href || pathname.startsWith(`${item.href}/`);

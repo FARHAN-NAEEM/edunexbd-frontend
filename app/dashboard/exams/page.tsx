@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ClipboardList, Plus, X, AlertCircle, Trash2 } from 'lucide-react';
+import { ClipboardList, Plus, X, AlertCircle, Trash2, Edit } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 export default function ExamsPage() {
@@ -16,6 +16,10 @@ export default function ExamsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [modalError, setModalError] = useState('');
+
+  // --- Edit Mode States ---
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     name: '', academicYearId: '', classId: '', sectionId: ''
@@ -59,8 +63,44 @@ export default function ExamsPage() {
     if (res.ok) setSections(await res.json());
   };
 
-  // Filter sections based on selected class
   const filteredSections = sections.filter(s => s.classId === formData.classId);
+
+  // --- ACTIONS ---
+  const openModalForCreate = () => {
+    setIsEditMode(false);
+    setEditId(null);
+    setFormData({ name: '', academicYearId: '', classId: '', sectionId: '' });
+    setModalError('');
+    setIsModalOpen(true);
+  };
+
+  const openModalForEdit = (exam: any) => {
+    setIsEditMode(true);
+    setEditId(exam.id);
+    setFormData({
+      name: exam.name,
+      academicYearId: exam.academicYearId,
+      classId: exam.classId || '',
+      sectionId: exam.sectionId || ''
+    });
+    setModalError('');
+    setIsModalOpen(true);
+  };
+
+  const handleDeleteExam = async (id: string, name: string) => {
+    if (!window.confirm(`আপনি কি নিশ্চিত যে "${name}" পরীক্ষাটি মুছে ফেলতে চান?`)) return;
+    
+    try {
+      const res = await fetch(`http://localhost:3000/results/exam/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` }
+      });
+      if (!res.ok) throw new Error('পরীক্ষাটি ডিলেট করা সম্ভব হয়নি!');
+      fetchExams();
+    } catch (error: any) {
+      alert(error.message);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,7 +108,6 @@ export default function ExamsPage() {
     setModalError('');
 
     try {
-      // Clean up empty optional fields
       const payload: any = { 
         name: formData.name.trim(), 
         academicYearId: formData.academicYearId 
@@ -76,8 +115,11 @@ export default function ExamsPage() {
       if (formData.classId) payload.classId = formData.classId;
       if (formData.sectionId) payload.sectionId = formData.sectionId;
 
-      const res = await fetch('http://localhost:3000/results/exam', {
-        method: 'POST',
+      const url = isEditMode ? `http://localhost:3000/results/exam/${editId}` : 'http://localhost:3000/results/exam';
+      const method = isEditMode ? 'PATCH' : 'POST';
+
+      const res = await fetch(url, {
+        method,
         headers: { 
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('accessToken')}` 
@@ -85,10 +127,9 @@ export default function ExamsPage() {
         body: JSON.stringify(payload)
       });
 
-      if (!res.ok) throw new Error('পরীক্ষা তৈরি করতে সমস্যা হয়েছে!');
+      if (!res.ok) throw new Error(isEditMode ? 'পরীক্ষা আপডেট করতে সমস্যা হয়েছে!' : 'পরীক্ষা তৈরি করতে সমস্যা হয়েছে!');
       
       setIsModalOpen(false);
-      setFormData({ name: '', academicYearId: '', classId: '', sectionId: '' });
       fetchExams();
     } catch (error: any) {
       setModalError(error.message);
@@ -109,7 +150,7 @@ export default function ExamsPage() {
           <p className="text-slate-500 text-[15px] mt-1 font-medium ml-11">প্রতিষ্ঠানের সকল পরীক্ষার রুটিন ও সেটআপ পরিচালনা করুন</p>
         </div>
         
-        <button onClick={() => { setModalError(''); setIsModalOpen(true); }} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3.5 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-blue-600/20 transition-all active:scale-95">
+        <button onClick={openModalForCreate} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3.5 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-blue-600/20 transition-all active:scale-95">
           <Plus className="w-5 h-5" /> নতুন পরীক্ষা তৈরি করুন
         </button>
       </div>
@@ -149,8 +190,15 @@ export default function ExamsPage() {
                       </td>
                       <td className="p-6 font-bold text-slate-600">{exam.class?.name || 'All Classes'}</td>
                       <td className="p-6 font-bold text-slate-600">{exam.section?.name || 'All Sections'}</td>
-                      <td className="p-6 text-right pr-8 text-slate-300 hover:text-red-500 cursor-pointer transition-colors">
-                        <Trash2 className="w-5 h-5 ml-auto" />
+                      <td className="p-6 text-right pr-8 text-slate-300">
+                        <div className="flex items-center justify-end gap-3">
+                          <button onClick={() => openModalForEdit(exam)} className="p-2 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit Exam">
+                            <Edit className="w-5 h-5" />
+                          </button>
+                          <button onClick={() => handleDeleteExam(exam.id, exam.name)} className="p-2 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete Exam">
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -161,13 +209,13 @@ export default function ExamsPage() {
         )}
       </div>
 
-      {/* Modal: Create Exam */}
+      {/* Modal: Create/Edit Exam */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-lg animate-in zoom-in-95 duration-300 overflow-hidden">
             <div className="px-8 py-6 border-b flex justify-between items-center bg-slate-50/50">
               <div>
-                <h2 className="text-xl font-black text-slate-800 tracking-tight">নতুন পরীক্ষা তৈরি</h2>
+                <h2 className="text-xl font-black text-slate-800 tracking-tight">{isEditMode ? 'পরীক্ষা আপডেট করুন' : 'নতুন পরীক্ষা তৈরি'}</h2>
                 <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Exam Setup</p>
               </div>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 p-2 bg-white hover:text-red-500 rounded-full transition-colors border border-slate-100"><X className="w-5 h-5"/></button>
@@ -208,7 +256,7 @@ export default function ExamsPage() {
 
               <div className="pt-6 flex items-center gap-3 border-t border-slate-100">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-4 text-slate-500 font-bold hover:bg-slate-50 rounded-2xl transition-colors">বাতিল</button>
-                <button type="submit" disabled={isSubmitting} className="flex-[2] bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-bold shadow-lg shadow-blue-600/20 active:scale-95 transition-all">{isSubmitting ? 'সেভ হচ্ছে...' : 'পরীক্ষা তৈরি করুন'}</button>
+                <button type="submit" disabled={isSubmitting} className="flex-[2] bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-bold shadow-lg shadow-blue-600/20 active:scale-95 transition-all">{isSubmitting ? 'সেভ হচ্ছে...' : isEditMode ? 'আপডেট করুন' : 'পরীক্ষা তৈরি করুন'}</button>
               </div>
             </form>
           </div>

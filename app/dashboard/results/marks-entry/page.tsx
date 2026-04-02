@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Save, Search, AlertCircle, FileSpreadsheet, Loader2, CheckCircle, Users } from 'lucide-react';
+import { Save, Search, AlertCircle, FileSpreadsheet, Loader2, Users } from 'lucide-react';
 
 export default function MarksEntryPage() {
   const router = useRouter();
@@ -12,8 +12,6 @@ export default function MarksEntryPage() {
   const [classes, setClasses] = useState<any[]>([]);
   const [sections, setSections] = useState<any[]>([]);
   const [subjects, setSubjects] = useState<any[]>([]);
-  
-  // ✅ FIX: Removed dummy exam data, now initially empty
   const [exams, setExams] = useState<any[]>([]);
 
   const [selectedExam, setSelectedExam] = useState('');
@@ -23,13 +21,14 @@ export default function MarksEntryPage() {
 
   // --- States for Data ---
   const [students, setStudents] = useState<any[]>([]);
+  const [activeSubjectConfig, setActiveSubjectConfig] = useState<any>(null); // ✅ Store subject limits
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   // --- Fetch Initial Data ---
   useEffect(() => {
     fetchClasses();
-    fetchExams(); // ✅ FIX: Added fetchExams call on initial load
+    fetchExams();
   }, []);
 
   // --- Fetch Sections & Subjects when Class changes ---
@@ -40,10 +39,20 @@ export default function MarksEntryPage() {
     } else {
       setSections([]);
       setSubjects([]);
+      setSelectedSubject('');
     }
   }, [selectedClass]);
 
-  // ✅ FIX: Function to fetch real exams from backend
+  // ✅ Update active subject config when subject changes
+  useEffect(() => {
+    if (selectedSubject) {
+      const subject = subjects.find(s => s.id === selectedSubject);
+      setActiveSubjectConfig(subject);
+    } else {
+      setActiveSubjectConfig(null);
+    }
+  }, [selectedSubject, subjects]);
+
   const fetchExams = async () => {
     const res = await fetch('http://localhost:3000/results/exams', {
       headers: { 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` }
@@ -102,7 +111,8 @@ export default function MarksEntryPage() {
           written: '',
           mcq: '',
           practical: '',
-          total: 0
+          total: 0,
+          errors: { written: false, mcq: false, practical: false } // Validation state
         }));
         
         gridData.sort((a: any, b: any) => a.rollNo - b.rollNo);
@@ -115,13 +125,22 @@ export default function MarksEntryPage() {
     }
   };
 
-  // --- Handle Grid Input Changes ---
+  // --- Handle Grid Input Changes with Validation ---
   const handleMarkChange = (index: number, field: 'written' | 'mcq' | 'practical', value: string) => {
     const numericValue = value === '' ? '' : Number(value);
     
     const updatedStudents = [...students];
     updatedStudents[index][field] = numericValue;
     
+    // ✅ VALIDATION LOGIC (চেক করবে দেওয়া মার্কস সর্বোচ্চ মার্কসের চেয়ে বেশি কি না)
+    if (activeSubjectConfig && typeof numericValue === 'number') {
+      const maxMarks = activeSubjectConfig[`${field}Marks`];
+      updatedStudents[index].errors[field] = numericValue > maxMarks;
+    } else {
+      updatedStudents[index].errors[field] = false;
+    }
+    
+    // Auto Calculate Total
     const w = Number(updatedStudents[index].written) || 0;
     const m = Number(updatedStudents[index].mcq) || 0;
     const p = Number(updatedStudents[index].practical) || 0;
@@ -133,6 +152,14 @@ export default function MarksEntryPage() {
   // --- Save Marks to Backend ---
   const handleSaveMarks = async () => {
     if (students.length === 0) return;
+    
+    // ✅ PREVENT SAVING IF ANY ERROR EXISTS
+    const hasErrors = students.some(s => s.errors.written || s.errors.mcq || s.errors.practical);
+    if (hasErrors) {
+      alert('সতর্কতা: কিছু স্টুডেন্টের নম্বর নির্ধারিত সর্বোচ্চ নম্বরের চেয়ে বেশি দেওয়া হয়েছে। লাল দাগ দেওয়া বক্সগুলো ঠিক করুন।');
+      return;
+    }
+
     setIsSaving(true);
     try {
       const token = localStorage.getItem('accessToken');
@@ -144,7 +171,7 @@ export default function MarksEntryPage() {
           examId: selectedExam, 
           written: Number(student.written) || 0,
           mcq: Number(student.mcq) || 0,
-          practical: Number(student.practical) || 0,
+          practical: activeSubjectConfig?.hasPractical ? (Number(student.practical) || 0) : 0,
         };
 
         return fetch('http://localhost:3000/results/mark', {
@@ -226,6 +253,25 @@ export default function MarksEntryPage() {
           </div>
 
         </div>
+
+        {/* ✅ DYNAMIC MARKS INFO BAR */}
+        {activeSubjectConfig && students.length > 0 && (
+          <div className="mt-4 flex items-center justify-between p-3.5 bg-blue-50/50 border border-blue-100 rounded-xl animate-in fade-in zoom-in-95 duration-300">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-blue-600" />
+              <p className="text-sm font-bold text-slate-700">
+                <span className="text-blue-700">{activeSubjectConfig.name}</span> বিষয়ের পূর্ণমান: <span className="font-black text-slate-900">{activeSubjectConfig.fullMarks}</span>
+              </p>
+            </div>
+            <div className="flex gap-4 text-xs font-bold text-slate-600">
+              <span className="bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">Written: <span className="font-black text-slate-800">{activeSubjectConfig.writtenMarks}</span></span>
+              <span className="bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">MCQ: <span className="font-black text-slate-800">{activeSubjectConfig.mcqMarks}</span></span>
+              {activeSubjectConfig.hasPractical && (
+                <span className="bg-blue-100/50 px-3 py-1.5 rounded-lg border border-blue-200 text-blue-800 shadow-sm">Practical: <span className="font-black">{activeSubjectConfig.practicalMarks}</span></span>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* EXCEL-LIKE GRID SECTION */}
@@ -254,10 +300,13 @@ export default function MarksEntryPage() {
               <thead>
                 <tr>
                   <th className="py-4 px-4 bg-slate-50 text-xs font-black text-slate-500 uppercase tracking-widest rounded-l-xl">রোল</th>
-                  <th className="py-4 px-4 bg-slate-50 text-xs font-black text-slate-500 uppercase tracking-widest">স্টুডেন্ট আইডি ও নাম</th>
-                  <th className="py-4 px-4 bg-slate-50 text-xs font-black text-blue-600 uppercase tracking-widest">Written</th>
-                  <th className="py-4 px-4 bg-slate-50 text-xs font-black text-blue-600 uppercase tracking-widest">MCQ</th>
-                  <th className="py-4 px-4 bg-slate-50 text-xs font-black text-blue-600 uppercase tracking-widest">Practical</th>
+                  <th className="py-4 px-4 bg-slate-50 text-xs font-black text-slate-500 uppercase tracking-widest min-w-[200px]">স্টুডেন্ট আইডি ও নাম</th>
+                  <th className="py-4 px-4 bg-slate-50 text-xs font-black text-blue-600 uppercase tracking-widest text-center">Written</th>
+                  <th className="py-4 px-4 bg-slate-50 text-xs font-black text-blue-600 uppercase tracking-widest text-center">MCQ</th>
+                  {/* ✅ CONDITIONAL PRACTICAL HEADER */}
+                  {activeSubjectConfig?.hasPractical && (
+                    <th className="py-4 px-4 bg-slate-50 text-xs font-black text-blue-600 uppercase tracking-widest text-center animate-in fade-in duration-300">Practical</th>
+                  )}
                   <th className="py-4 px-4 bg-slate-50 text-xs font-black text-emerald-600 uppercase tracking-widest text-center rounded-r-xl">Total (Auto)</th>
                 </tr>
               </thead>
@@ -274,36 +323,57 @@ export default function MarksEntryPage() {
                       <div className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-0.5">{student.studentId}</div>
                     </td>
 
-                    <td className="py-3 px-2">
+                    <td className="py-3 px-2 text-center">
                       <input 
                         type="number" 
                         value={student.written}
                         onChange={(e) => handleMarkChange(index, 'written', e.target.value)}
-                        className="w-24 p-3 bg-white border border-slate-200 rounded-xl font-bold text-center text-slate-700 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all hover:bg-slate-50"
+                        className={`w-24 p-3 bg-white border rounded-xl font-bold text-center transition-all hover:bg-slate-50 focus:outline-none focus:ring-4 ${
+                          student.errors.written 
+                            ? 'border-red-500 text-red-600 focus:ring-red-500/20 bg-red-50' 
+                            : 'border-slate-200 text-slate-700 focus:ring-blue-500/10 focus:border-blue-500'
+                        }`}
                         placeholder="0"
                       />
                     </td>
-                    <td className="py-3 px-2">
+                    
+                    <td className="py-3 px-2 text-center">
                       <input 
                         type="number" 
                         value={student.mcq}
                         onChange={(e) => handleMarkChange(index, 'mcq', e.target.value)}
-                        className="w-24 p-3 bg-white border border-slate-200 rounded-xl font-bold text-center text-slate-700 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all hover:bg-slate-50"
-                        placeholder="0"
-                      />
-                    </td>
-                    <td className="py-3 px-2">
-                      <input 
-                        type="number" 
-                        value={student.practical}
-                        onChange={(e) => handleMarkChange(index, 'practical', e.target.value)}
-                        className="w-24 p-3 bg-white border border-slate-200 rounded-xl font-bold text-center text-slate-700 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all hover:bg-slate-50"
+                        className={`w-24 p-3 bg-white border rounded-xl font-bold text-center transition-all hover:bg-slate-50 focus:outline-none focus:ring-4 ${
+                          student.errors.mcq 
+                            ? 'border-red-500 text-red-600 focus:ring-red-500/20 bg-red-50' 
+                            : 'border-slate-200 text-slate-700 focus:ring-blue-500/10 focus:border-blue-500'
+                        }`}
                         placeholder="0"
                       />
                     </td>
 
+                    {/* ✅ CONDITIONAL PRACTICAL INPUT */}
+                    {activeSubjectConfig?.hasPractical && (
+                      <td className="py-3 px-2 text-center animate-in fade-in duration-300">
+                        <input 
+                          type="number" 
+                          value={student.practical}
+                          onChange={(e) => handleMarkChange(index, 'practical', e.target.value)}
+                          className={`w-24 p-3 bg-white border rounded-xl font-bold text-center transition-all hover:bg-slate-50 focus:outline-none focus:ring-4 ${
+                            student.errors.practical 
+                              ? 'border-red-500 text-red-600 focus:ring-red-500/20 bg-red-50' 
+                              : 'border-slate-200 text-slate-700 focus:ring-blue-500/10 focus:border-blue-500'
+                          }`}
+                          placeholder="0"
+                        />
+                      </td>
+                    )}
+
                     <td className="py-4 px-4 text-center">
-                      <div className="inline-flex items-center justify-center min-w-[3rem] px-3 py-2 bg-emerald-50 text-emerald-700 font-black rounded-xl border border-emerald-100 text-lg">
+                      <div className={`inline-flex items-center justify-center min-w-[3rem] px-3 py-2 font-black rounded-xl border text-lg ${
+                        (student.errors.written || student.errors.mcq || student.errors.practical)
+                          ? 'bg-red-50 text-red-600 border-red-200'
+                          : 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                      }`}>
                         {student.total}
                       </div>
                     </td>

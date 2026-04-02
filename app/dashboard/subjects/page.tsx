@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import { 
   Plus, Search, BookOpen, Hash, AlertCircle, X, Trash2, 
-  Layers, CalendarDays, LayoutGrid, Info, Calculator, CheckCircle2
+  Layers, CalendarDays, LayoutGrid, Info, Calculator, CheckCircle2, Edit
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -29,6 +29,19 @@ export default function AcademicSetupPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [modalError, setModalError] = useState(''); 
   
+  // ----- Edit Mode States (All Modules) -----
+  const [isYearEditMode, setIsYearEditMode] = useState(false);
+  const [yearEditId, setYearEditId] = useState<string | null>(null);
+
+  const [isClassEditMode, setIsClassEditMode] = useState(false);
+  const [classEditId, setClassEditId] = useState<string | null>(null);
+
+  const [isSectionEditMode, setIsSectionEditMode] = useState(false);
+  const [sectionEditId, setSectionEditId] = useState<string | null>(null);
+
+  const [isSubjectEditMode, setIsSubjectEditMode] = useState(false);
+  const [subjectEditId, setSubjectEditId] = useState<string | null>(null);
+
   // ----- Form States -----
   const [yearFormData, setYearFormData] = useState({ year: '', startDate: '', endDate: '' });
   const [classFormData, setClassFormData] = useState({ name: '', academicYearId: '' });
@@ -97,56 +110,130 @@ export default function AcademicSetupPage() {
     if (res.ok) setSubjects(await res.json());
   };
 
-  // ----- Submit Handlers -----
-  const handleYearAdd = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true); setModalError('');
+  // ==========================================
+  // ACTIONS: ACADEMIC YEARS
+  // ==========================================
+  const openYearModalForCreate = () => {
+    setIsYearEditMode(false); setYearEditId(null);
+    setYearFormData({ year: '', startDate: '', endDate: '' });
+    setModalError(''); setIsYearModalOpen(true);
+  };
+
+  const openYearModalForEdit = (year: any) => {
+    setIsYearEditMode(true); setYearEditId(year.id);
+    setYearFormData({
+      year: year.year,
+      startDate: year.startDate ? year.startDate.substring(0, 10) : '',
+      endDate: year.endDate ? year.endDate.substring(0, 10) : ''
+    });
+    setModalError(''); setIsYearModalOpen(true);
+  };
+
+  const handleDeleteYear = async (id: string, name: string) => {
+    if (!window.confirm(`আপনি কি নিশ্চিত যে "${name}" শিক্ষাবর্ষটি মুছে ফেলতে চান?`)) return;
+    try {
+      const res = await fetch(`http://localhost:3000/academic/years/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` } });
+      if (!res.ok) throw new Error('শিক্ষাবর্ষটি ডিলেট করা সম্ভব হয়নি!');
+      fetchAcademicYears();
+    } catch (error: any) { alert(error.message); }
+  };
+
+  const handleYearSubmit = async (e: React.FormEvent) => {
+    e.preventDefault(); setIsSubmitting(true); setModalError('');
     try {
       const sanitizedData = { ...yearFormData, year: yearFormData.year.trim() };
-      const res = await fetch('http://localhost:3000/academic/years', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` },
+      const url = isYearEditMode ? `http://localhost:3000/academic/years/${yearEditId}` : 'http://localhost:3000/academic/years';
+      const method = isYearEditMode ? 'PATCH' : 'POST';
+      const res = await fetch(url, {
+        method, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` },
         body: JSON.stringify(sanitizedData) 
       });
-      if (!res.ok) throw new Error('শিক্ষাবর্ষ যোগ করতে সমস্যা হয়েছে!');
-      setIsYearModalOpen(false); setYearFormData({ year: '', startDate: '', endDate: '' });
-      fetchAcademicYears();
+      if (!res.ok) throw new Error(isYearEditMode ? 'শিক্ষাবর্ষ আপডেট করতে সমস্যা হয়েছে!' : 'শিক্ষাবর্ষ যোগ করতে সমস্যা হয়েছে!');
+      setIsYearModalOpen(false); fetchAcademicYears();
     } catch (error: any) { setModalError(error.message); } finally { setIsSubmitting(false); }
   };
 
-  const handleClassAdd = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true); setModalError('');
+  // ==========================================
+  // ACTIONS: CLASSES
+  // ==========================================
+  const openClassModalForCreate = () => {
+    setIsClassEditMode(false); setClassEditId(null);
+    setClassFormData({ name: '', academicYearId: '' });
+    setModalError(''); setIsClassModalOpen(true);
+  };
+
+  const openClassModalForEdit = (cls: any) => {
+    setIsClassEditMode(true); setClassEditId(cls.id);
+    setClassFormData({ name: cls.name, academicYearId: cls.academicYearId });
+    setModalError(''); setIsClassModalOpen(true);
+  };
+
+  const handleDeleteClass = async (id: string, name: string) => {
+    if (!window.confirm(`আপনি কি নিশ্চিত যে "${name}" ক্লাসটি মুছে ফেলতে চান?`)) return;
+    try {
+      const res = await fetch(`http://localhost:3000/academic/classes/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` } });
+      if (!res.ok) throw new Error('ক্লাসটি ডিলেট করা সম্ভব হয়নি!');
+      fetchClasses();
+    } catch (error: any) { alert(error.message); }
+  };
+
+  const handleClassSubmit = async (e: React.FormEvent) => {
+    e.preventDefault(); setIsSubmitting(true); setModalError('');
     try {
       const sanitizedData = { ...classFormData, name: classFormData.name.trim() };
-      const res = await fetch('http://localhost:3000/academic/classes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` },
+      const url = isClassEditMode ? `http://localhost:3000/academic/classes/${classEditId}` : 'http://localhost:3000/academic/classes';
+      const method = isClassEditMode ? 'PATCH' : 'POST';
+      const res = await fetch(url, {
+        method, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` },
         body: JSON.stringify(sanitizedData) 
       });
-      if (!res.ok) throw new Error('ক্লাস যোগ করতে সমস্যা হয়েছে!');
-      setIsClassModalOpen(false); setClassFormData({ name: '', academicYearId: '' });
-      fetchClasses();
+      if (!res.ok) throw new Error(isClassEditMode ? 'ক্লাস আপডেট করতে সমস্যা হয়েছে!' : 'ক্লাস যোগ করতে সমস্যা হয়েছে!');
+      setIsClassModalOpen(false); fetchClasses();
     } catch (error: any) { setModalError(error.message); } finally { setIsSubmitting(false); }
   };
 
-  const handleSectionAdd = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true); setModalError('');
+  // ==========================================
+  // ACTIONS: SECTIONS
+  // ==========================================
+  const openSectionModalForCreate = () => {
+    setIsSectionEditMode(false); setSectionEditId(null);
+    setSectionFormData({ name: '', classId: '' });
+    setModalError(''); setIsSectionModalOpen(true);
+  };
+
+  const openSectionModalForEdit = (sec: any) => {
+    setIsSectionEditMode(true); setSectionEditId(sec.id);
+    setSectionFormData({ name: sec.name, classId: sec.classId });
+    setModalError(''); setIsSectionModalOpen(true);
+  };
+
+  const handleDeleteSection = async (id: string, name: string) => {
+    if (!window.confirm(`আপনি কি নিশ্চিত যে "${name}" শাখাটি মুছে ফেলতে চান?`)) return;
+    try {
+      const res = await fetch(`http://localhost:3000/academic/sections/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` } });
+      if (!res.ok) throw new Error('শাখাটি ডিলেট করা সম্ভব হয়নি!');
+      fetchSections();
+    } catch (error: any) { alert(error.message); }
+  };
+
+  const handleSectionSubmit = async (e: React.FormEvent) => {
+    e.preventDefault(); setIsSubmitting(true); setModalError('');
     try {
       const sanitizedData = { ...sectionFormData, name: sectionFormData.name.trim() };
-      const res = await fetch('http://localhost:3000/academic/sections', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` },
+      const url = isSectionEditMode ? `http://localhost:3000/academic/sections/${sectionEditId}` : 'http://localhost:3000/academic/sections';
+      const method = isSectionEditMode ? 'PATCH' : 'POST';
+      const res = await fetch(url, {
+        method, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` },
         body: JSON.stringify(sanitizedData) 
       });
-      if (!res.ok) throw new Error('সেকশন যোগ করতে সমস্যা হয়েছে!');
-      setIsSectionModalOpen(false); setSectionFormData({ name: '', classId: '' });
-      fetchSections();
+      if (!res.ok) throw new Error(isSectionEditMode ? 'সেকশন আপডেট করতে সমস্যা হয়েছে!' : 'সেকশন যোগ করতে সমস্যা হয়েছে!');
+      setIsSectionModalOpen(false); fetchSections();
     } catch (error: any) { setModalError(error.message); } finally { setIsSubmitting(false); }
   };
 
-  // ✅ DYNAMIC SUBJECT AUTO-CALCULATION LOGIC
+  // ==========================================
+  // ACTIONS: SUBJECTS
+  // ==========================================
   const handleMarksChange = (field: string, value: string) => {
     const numVal = value === '' ? 0 : Number(value);
     setSubjectFormData(prev => {
@@ -163,24 +250,43 @@ export default function AcademicSetupPage() {
     });
   };
 
-  const handleSubjectAdd = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true); setModalError('');
+  const openSubjectModalForCreate = () => {
+    setIsSubjectEditMode(false); setSubjectEditId(null);
+    setSubjectFormData({ name: '', code: '', classId: '', hasPractical: false, writtenMarks: 100, mcqMarks: 0, practicalMarks: 0, fullMarks: 100, passMarks: 33 });
+    setModalError(''); setIsSubjectModalOpen(true);
+  };
+
+  const openSubjectModalForEdit = (sub: any) => {
+    setIsSubjectEditMode(true); setSubjectEditId(sub.id);
+    setSubjectFormData({
+      name: sub.name, code: sub.code, classId: sub.classId,
+      hasPractical: sub.hasPractical, writtenMarks: sub.writtenMarks, mcqMarks: sub.mcqMarks,
+      practicalMarks: sub.practicalMarks, fullMarks: sub.fullMarks, passMarks: sub.passMarks
+    });
+    setModalError(''); setIsSubjectModalOpen(true);
+  };
+
+  const handleDeleteSubject = async (id: string, name: string) => {
+    if (!window.confirm(`আপনি কি নিশ্চিত যে "${name}" সাবজেক্টটি মুছে ফেলতে চান?`)) return;
     try {
-      const sanitizedData = { 
-        ...subjectFormData, 
-        name: subjectFormData.name.trim(),
-        code: subjectFormData.code.trim().toUpperCase() 
-      };
-      const res = await fetch('http://localhost:3000/academic/subjects', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` },
+      const res = await fetch(`http://localhost:3000/academic/subjects/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` } });
+      if (!res.ok) throw new Error('সাবজেক্টটি ডিলেট করা সম্ভব হয়নি!');
+      fetchSubjects();
+    } catch (error: any) { alert(error.message); }
+  };
+
+  const handleSubjectSubmit = async (e: React.FormEvent) => {
+    e.preventDefault(); setIsSubmitting(true); setModalError('');
+    try {
+      const sanitizedData = { ...subjectFormData, name: subjectFormData.name.trim(), code: subjectFormData.code.trim().toUpperCase() };
+      const url = isSubjectEditMode ? `http://localhost:3000/academic/subjects/${subjectEditId}` : 'http://localhost:3000/academic/subjects';
+      const method = isSubjectEditMode ? 'PATCH' : 'POST';
+      const res = await fetch(url, {
+        method, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` },
         body: JSON.stringify(sanitizedData) 
       });
-      if (!res.ok) throw new Error('বিষয় যোগ করতে সমস্যা হয়েছে!');
-      setIsSubjectModalOpen(false); 
-      setSubjectFormData({ name: '', code: '', classId: '', hasPractical: false, writtenMarks: 100, mcqMarks: 0, practicalMarks: 0, fullMarks: 100, passMarks: 33 });
-      fetchSubjects();
+      if (!res.ok) throw new Error(isSubjectEditMode ? 'বিষয় আপডেট করতে সমস্যা হয়েছে!' : 'বিষয় যোগ করতে সমস্যা হয়েছে!');
+      setIsSubjectModalOpen(false); fetchSubjects();
     } catch (error: any) { setModalError(error.message); } finally { setIsSubmitting(false); }
   };
 
@@ -196,22 +302,22 @@ export default function AcademicSetupPage() {
         
         <div className="flex items-center gap-3">
           {activeTab === 'years' && (
-            <button onClick={() => { setModalError(''); setIsYearModalOpen(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-emerald-600/20 transition-all active:scale-95">
+            <button onClick={openYearModalForCreate} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-emerald-600/20 transition-all active:scale-95">
               <Plus className="w-5 h-5" /> নতুন শিক্ষাবর্ষ
             </button>
           )}
           {activeTab === 'classes' && (
-            <button onClick={() => { setModalError(''); setIsClassModalOpen(true); }} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-indigo-600/20 transition-all active:scale-95">
+            <button onClick={openClassModalForCreate} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-indigo-600/20 transition-all active:scale-95">
               <Plus className="w-5 h-5" /> নতুন ক্লাস
             </button>
           )}
           {activeTab === 'sections' && (
-            <button onClick={() => { setModalError(''); setIsSectionModalOpen(true); }} className="bg-violet-600 hover:bg-violet-700 text-white px-5 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-violet-600/20 transition-all active:scale-95">
+            <button onClick={openSectionModalForCreate} className="bg-violet-600 hover:bg-violet-700 text-white px-5 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-violet-600/20 transition-all active:scale-95">
               <Plus className="w-5 h-5" /> নতুন সেকশন
             </button>
           )}
           {activeTab === 'subjects' && (
-            <button onClick={() => { setModalError(''); setIsSubjectModalOpen(true); }} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-blue-600/20 transition-all active:scale-95">
+            <button onClick={openSubjectModalForCreate} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-blue-600/20 transition-all active:scale-95">
               <Plus className="w-5 h-5" /> নতুন বিষয়
             </button>
           )}
@@ -250,6 +356,8 @@ export default function AcademicSetupPage() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
+              
+              {/* TAB: YEARS */}
               {activeTab === 'years' && (
                 <>
                   <thead className="bg-slate-50/80 border-b border-slate-100 text-slate-500 text-xs font-bold uppercase tracking-widest">
@@ -266,10 +374,11 @@ export default function AcademicSetupPage() {
                         <td className="p-6 pl-8 font-bold text-emerald-600 text-lg tracking-tight">{y.year}</td>
                         <td className="p-6 text-slate-600 font-medium">{formatDate(y.startDate)}</td>
                         <td className="p-6 text-slate-600 font-medium">{formatDate(y.endDate)}</td>
-                        <td className="p-6 text-right pr-8">
-                          <button className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all">
-                            <Trash2 className="w-5 h-5" />
-                          </button>
+                        <td className="p-6 text-right pr-8 text-slate-300">
+                          <div className="flex items-center justify-end gap-3">
+                            <button onClick={() => openYearModalForEdit(y)} className="p-2 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><Edit className="w-5 h-5" /></button>
+                            <button onClick={() => handleDeleteYear(y.id, y.year)} className="p-2 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-5 h-5" /></button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -277,6 +386,7 @@ export default function AcademicSetupPage() {
                 </>
               )}
 
+              {/* TAB: CLASSES */}
               {activeTab === 'classes' && (
                 <>
                   <thead className="bg-slate-50/80 border-b border-slate-100 text-slate-500 text-xs font-bold uppercase tracking-widest">
@@ -296,7 +406,10 @@ export default function AcademicSetupPage() {
                           </span>
                         </td>
                         <td className="p-6 text-right pr-8 text-slate-300">
-                          <Trash2 className="w-5 h-5 ml-auto cursor-pointer hover:text-red-500" />
+                          <div className="flex items-center justify-end gap-3">
+                            <button onClick={() => openClassModalForEdit(c)} className="p-2 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><Edit className="w-5 h-5" /></button>
+                            <button onClick={() => handleDeleteClass(c.id, c.name)} className="p-2 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-5 h-5" /></button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -304,6 +417,7 @@ export default function AcademicSetupPage() {
                 </>
               )}
 
+              {/* TAB: SECTIONS */}
               {activeTab === 'sections' && (
                 <>
                   <thead className="bg-slate-50/80 border-b border-slate-100 text-slate-500 text-xs font-bold uppercase tracking-widest">
@@ -322,13 +436,19 @@ export default function AcademicSetupPage() {
                             {s.class?.name || 'N/A'}
                           </span>
                         </td>
-                        <td className="p-6 text-right pr-8 text-slate-300"><Trash2 className="w-5 h-5 ml-auto" /></td>
+                        <td className="p-6 text-right pr-8 text-slate-300">
+                          <div className="flex items-center justify-end gap-3">
+                            <button onClick={() => openSectionModalForEdit(s)} className="p-2 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><Edit className="w-5 h-5" /></button>
+                            <button onClick={() => handleDeleteSection(s.id, s.name)} className="p-2 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-5 h-5" /></button>
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </>
               )}
 
+              {/* TAB: SUBJECTS */}
               {activeTab === 'subjects' && (
                 <>
                   <thead className="bg-slate-50/80 border-b border-slate-100 text-slate-500 text-xs font-bold uppercase tracking-widest">
@@ -336,8 +456,8 @@ export default function AcademicSetupPage() {
                       <th className="p-6 pl-8">কোড</th>
                       <th className="p-6">বিষয়ের নাম</th>
                       <th className="p-6">ক্লাস</th>
-                      <th className="p-6">পূর্ণমান</th>
-                      <th className="p-6">ধরন</th>
+                      <th className="p-6 text-center">পূর্ণমান</th>
+                      <th className="p-6">মার্কস ডিস্ট্রিবিউশন (Type)</th>
                       <th className="p-6 text-right pr-8">অ্যাকশন</th>
                     </tr>
                   </thead>
@@ -351,15 +471,22 @@ export default function AcademicSetupPage() {
                             {sub.class?.name || 'N/A'}
                           </span>
                         </td>
-                        <td className="p-6 font-black text-indigo-700">{sub.fullMarks || 100}</td>
+                        <td className="p-6 font-black text-indigo-700 text-center text-lg">{sub.fullMarks || 100}</td>
+                        
                         <td className="p-6">
-                          {sub.hasPractical ? (
-                            <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wider">Practical</span>
-                          ) : (
-                            <span className="bg-slate-100 text-slate-600 border border-slate-200 px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wider">Theory</span>
-                          )}
+                          <div className="flex flex-wrap gap-2">
+                            {sub.writtenMarks > 0 && <span className="bg-slate-100 text-slate-700 border border-slate-200 px-2 py-1 rounded text-xs font-bold">W: {sub.writtenMarks}</span>}
+                            {sub.mcqMarks > 0 && <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-1 rounded text-xs font-bold">M: {sub.mcqMarks}</span>}
+                            {sub.hasPractical && sub.practicalMarks > 0 && <span className="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded text-xs font-bold">P: {sub.practicalMarks}</span>}
+                          </div>
                         </td>
-                        <td className="p-6 text-right pr-8 text-slate-300"><Trash2 className="w-5 h-5 ml-auto" /></td>
+
+                        <td className="p-6 text-right pr-8 text-slate-300">
+                          <div className="flex items-center justify-end gap-3">
+                            <button onClick={() => openSubjectModalForEdit(sub)} className="p-2 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><Edit className="w-5 h-5" /></button>
+                            <button onClick={() => handleDeleteSubject(sub.id, sub.name)} className="p-2 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-5 h-5" /></button>
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -370,22 +497,26 @@ export default function AcademicSetupPage() {
         )}
       </div>
 
-      {/* ---------------- 1. MODAL: ADD YEAR ---------------- */}
+      {/* ========================================================= */}
+      {/* MODALS */}
+      {/* ========================================================= */}
+
+      {/* 1. MODAL: ADD/EDIT YEAR */}
       {isYearModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md animate-in zoom-in-95 duration-300 overflow-hidden border border-slate-100">
             <div className="px-8 py-6 border-b flex justify-between items-center bg-slate-50/50">
               <div>
-                <h2 className="text-xl font-black text-slate-800 tracking-tight">নতুন শিক্ষাবর্ষ</h2>
+                <h2 className="text-xl font-black text-slate-800 tracking-tight">{isYearEditMode ? 'শিক্ষাবর্ষ আপডেট করুন' : 'নতুন শিক্ষাবর্ষ'}</h2>
                 <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Academic Year</p>
               </div>
               <button onClick={() => setIsYearModalOpen(false)} className="text-slate-400 hover:text-slate-600 p-2 bg-white rounded-full shadow-sm border border-slate-100 transition-all hover:rotate-90"><X className="w-5 h-5"/></button>
             </div>
-            <form onSubmit={handleYearAdd} className="p-8 space-y-6">
+            <form onSubmit={handleYearSubmit} className="p-8 space-y-6">
               {modalError && <div className="p-4 bg-red-50 text-red-600 text-sm rounded-2xl flex items-center gap-2 border border-red-100"><AlertCircle className="w-4 h-4" />{modalError}</div>}
               <div className="space-y-2">
                 <label className="text-sm font-bold text-slate-700 ml-1">শিক্ষাবর্ষের নাম</label>
-                <input required className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 focus:outline-none transition-all" value={yearFormData.year} onChange={e => setYearFormData({...yearFormData, year: e.target.value})} placeholder="যেমন: 2026" />
+                <input required className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 focus:outline-none transition-all font-bold" value={yearFormData.year} onChange={e => setYearFormData({...yearFormData, year: e.target.value})} placeholder="যেমন: 2026" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -399,25 +530,25 @@ export default function AcademicSetupPage() {
               </div>
               <div className="pt-4 flex items-center gap-3">
                 <button type="button" onClick={() => setIsYearModalOpen(false)} className="flex-1 py-4 text-slate-500 font-bold hover:bg-slate-50 rounded-2xl transition-all">বাতিল</button>
-                <button type="submit" disabled={isSubmitting} className="flex-[2] bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-bold shadow-lg shadow-emerald-600/20 transition-all active:scale-95">{isSubmitting ? 'সেভ হচ্ছে...' : 'সেভ করুন'}</button>
+                <button type="submit" disabled={isSubmitting} className="flex-[2] bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-bold shadow-lg shadow-emerald-600/20 transition-all active:scale-95">{isSubmitting ? 'সেভ হচ্ছে...' : isYearEditMode ? 'আপডেট করুন' : 'সেভ করুন'}</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* ---------------- 2. MODAL: ADD CLASS ---------------- */}
+      {/* 2. MODAL: ADD/EDIT CLASS */}
       {isClassModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md animate-in zoom-in-95 duration-300 overflow-hidden border border-slate-100">
             <div className="px-8 py-6 border-b flex justify-between items-center bg-slate-50/50">
               <div>
-                <h2 className="text-xl font-black text-slate-800 tracking-tight">নতুন ক্লাস যোগ করুন</h2>
+                <h2 className="text-xl font-black text-slate-800 tracking-tight">{isClassEditMode ? 'ক্লাস আপডেট করুন' : 'নতুন ক্লাস যোগ করুন'}</h2>
                 <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Class Setup</p>
               </div>
               <button onClick={() => setIsClassModalOpen(false)} className="text-slate-400 hover:text-slate-600 p-2 bg-white rounded-full"><X className="w-5 h-5"/></button>
             </div>
-            <form onSubmit={handleClassAdd} className="p-8 space-y-6">
+            <form onSubmit={handleClassSubmit} className="p-8 space-y-6">
               {modalError && <div className="p-4 bg-red-50 text-red-600 text-sm rounded-2xl flex items-center gap-2 border border-red-100"><AlertCircle className="w-4 h-4" />{modalError}</div>}
               <div className="space-y-2">
                 <label className="text-sm font-bold text-slate-700 ml-1">ক্লাসের নাম</label>
@@ -432,25 +563,25 @@ export default function AcademicSetupPage() {
               </div>
               <div className="pt-4 flex items-center gap-3">
                 <button type="button" onClick={() => setIsClassModalOpen(false)} className="flex-1 py-4 text-slate-500 font-bold">বাতিল</button>
-                <button type="submit" disabled={isSubmitting} className="flex-[2] bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-2xl font-bold shadow-lg shadow-indigo-600/20 active:scale-95">{isSubmitting ? 'সেভ হচ্ছে...' : 'সেভ করুন'}</button>
+                <button type="submit" disabled={isSubmitting} className="flex-[2] bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-2xl font-bold shadow-lg shadow-indigo-600/20 active:scale-95">{isSubmitting ? 'সেভ হচ্ছে...' : isClassEditMode ? 'আপডেট করুন' : 'সেভ করুন'}</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* ---------------- 3. MODAL: ADD SECTION ---------------- */}
+      {/* 3. MODAL: ADD/EDIT SECTION */}
       {isSectionModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md animate-in zoom-in-95 duration-300 overflow-hidden">
             <div className="px-8 py-6 border-b flex justify-between items-center bg-slate-50/50">
               <div>
-                <h2 className="text-xl font-black text-slate-800 tracking-tight">নতুন শাখা (Section)</h2>
+                <h2 className="text-xl font-black text-slate-800 tracking-tight">{isSectionEditMode ? 'শাখা আপডেট করুন' : 'নতুন শাখা (Section)'}</h2>
                 <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Section Creation</p>
               </div>
               <button onClick={() => setIsSectionModalOpen(false)} className="text-slate-400 p-2 bg-white rounded-full"><X className="w-5 h-5"/></button>
             </div>
-            <form onSubmit={handleSectionAdd} className="p-8 space-y-6">
+            <form onSubmit={handleSectionSubmit} className="p-8 space-y-6">
               <div className="space-y-2">
                 <label className="text-sm font-bold text-slate-700 ml-1">সেকশনের নাম</label>
                 <input required className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-violet-500/10 focus:border-violet-500 focus:outline-none transition-all font-bold" value={sectionFormData.name} onChange={e => setSectionFormData({...sectionFormData, name: e.target.value})} placeholder="যেমন: Section A" />
@@ -464,27 +595,27 @@ export default function AcademicSetupPage() {
               </div>
               <div className="pt-4 flex items-center gap-3">
                 <button type="button" onClick={() => setIsSectionModalOpen(false)} className="flex-1 py-4 text-slate-500 font-bold">বাতিল</button>
-                <button type="submit" disabled={isSubmitting} className="flex-[2] bg-violet-600 hover:bg-violet-700 text-white py-4 rounded-2xl font-bold active:scale-95 shadow-lg shadow-violet-600/20">{isSubmitting ? 'সেভ হচ্ছে...' : 'সেভ করুন'}</button>
+                <button type="submit" disabled={isSubmitting} className="flex-[2] bg-violet-600 hover:bg-violet-700 text-white py-4 rounded-2xl font-bold active:scale-95 shadow-lg shadow-violet-600/20">{isSubmitting ? 'সেভ হচ্ছে...' : isSectionEditMode ? 'আপডেট করুন' : 'সেভ করুন'}</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* ---------------- 4. MODAL: ADD SUBJECT (DYNAMIC MARKS) ---------------- */}
+      {/* 4. MODAL: ADD/EDIT SUBJECT */}
       {isSubjectModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          {/* ✅ Modal widened for Marks Grid */}
           <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-xl animate-in zoom-in-95 duration-300 overflow-hidden">
             <div className="px-8 py-6 border-b flex justify-between items-center bg-slate-50/50">
               <div>
-                <h2 className="text-xl font-black text-slate-800 tracking-tight">নতুন বিষয় ও মার্কস সেটআপ</h2>
+                <h2 className="text-xl font-black text-slate-800 tracking-tight">{isSubjectEditMode ? 'বিষয় আপডেট করুন' : 'নতুন বিষয় ও মার্কস সেটআপ'}</h2>
                 <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Subject Entry & Grading</p>
               </div>
               <button onClick={() => setIsSubjectModalOpen(false)} className="text-slate-400 p-2 bg-white hover:text-red-500 rounded-full transition-colors"><X className="w-5 h-5"/></button>
             </div>
 
-            <form onSubmit={handleSubjectAdd} className="p-8 space-y-6 max-h-[75vh] overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-200">
+            <form onSubmit={handleSubjectSubmit} className="p-8 space-y-6 max-h-[75vh] overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-200">
+              {modalError && <div className="p-4 bg-red-50 text-red-600 text-sm rounded-2xl flex items-center gap-2 border border-red-100"><AlertCircle className="w-4 h-4" />{modalError}</div>}
               
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -505,12 +636,10 @@ export default function AcademicSetupPage() {
                 </select>
               </div>
 
-              {/* ✅ DYNAMIC MARKS DISTRIBUTION BOX */}
               <div className="space-y-2 mt-4">
                 <label className="text-sm font-bold text-slate-700 ml-1 flex items-center gap-2"><Calculator className="w-4 h-4 text-blue-600"/> মার্কস ডিস্ট্রিবিউশন</label>
                 <div className="p-5 bg-blue-50/50 rounded-2xl border border-blue-100 space-y-5">
                   
-                  {/* Practical Toggle */}
                   <label className="flex items-center gap-3 cursor-pointer group w-fit">
                     <div className="relative">
                       <input type="checkbox" className="sr-only peer" checked={subjectFormData.hasPractical} onChange={e => handleHasPracticalToggle(e.target.checked)} />
@@ -519,7 +648,6 @@ export default function AcademicSetupPage() {
                     <span className="font-bold text-slate-700 group-hover:text-blue-700 transition-colors">প্র্যাকটিক্যাল পরীক্ষা আছে</span>
                   </label>
 
-                  {/* Components Grid */}
                   <div className="grid grid-cols-3 gap-4">
                     <div className="space-y-1.5">
                       <label className="text-[11px] font-black text-slate-500 uppercase tracking-wider">Written Marks</label>
@@ -530,7 +658,6 @@ export default function AcademicSetupPage() {
                       <input type="number" required className="w-full p-3.5 bg-white border border-slate-200 rounded-xl font-black text-slate-700 text-center focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/10 transition-all" value={subjectFormData.mcqMarks || ''} onChange={(e) => handleMarksChange('mcqMarks', e.target.value)} placeholder="0" />
                     </div>
                     
-                    {/* Conditional Practical Input */}
                     {subjectFormData.hasPractical ? (
                       <div className="space-y-1.5 animate-in slide-in-from-right-4 fade-in duration-300">
                         <label className="text-[11px] font-black text-blue-600 uppercase tracking-wider">Practical Marks</label>
@@ -544,7 +671,6 @@ export default function AcademicSetupPage() {
                     )}
                   </div>
 
-                  {/* Totals Grid */}
                   <div className="grid grid-cols-2 gap-4 pt-4 border-t border-blue-200/50">
                     <div className="space-y-1.5">
                       <label className="text-[11px] font-black text-emerald-600 uppercase tracking-wider flex items-center gap-1"><CheckCircle2 className="w-3 h-3"/> Total Marks (Auto)</label>
@@ -561,7 +687,7 @@ export default function AcademicSetupPage() {
 
               <div className="pt-6 flex items-center gap-3 border-t border-slate-100">
                 <button type="button" onClick={() => setIsSubjectModalOpen(false)} className="flex-1 py-4 text-slate-500 font-bold hover:bg-slate-50 rounded-2xl transition-colors">বাতিল</button>
-                <button type="submit" disabled={isSubmitting} className="flex-[2] bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-bold shadow-lg shadow-blue-600/20 active:scale-95 transition-all">{isSubmitting ? 'সেভ হচ্ছে...' : 'সাবজেক্ট তৈরি করুন'}</button>
+                <button type="submit" disabled={isSubmitting} className="flex-[2] bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-bold shadow-lg shadow-blue-600/20 active:scale-95 transition-all">{isSubmitting ? 'সেভ হচ্ছে...' : isSubjectEditMode ? 'আপডেট করুন' : 'সাবজেক্ট তৈরি করুন'}</button>
               </div>
             </form>
           </div>
